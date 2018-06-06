@@ -18,7 +18,7 @@
 #
 mkdir -p ~/ca
 cd ~/ca
-rm -vrf certs crl newcerts private password index.txt openssl.cnf intermediate 'export' serial serial.* index.txt index.txt.* req self intermediate_ca_cert.sh *.ca ca.cnf
+rm -vrf certs crl newcerts private password index.txt openssl.cnf 'export' serial serial.* index.txt index.txt.* req self intermediate_ca_cert.sh *.ca ca.cnf
 if [ "x${1}" == "xclean" ] ; then
 	exit
 fi 
@@ -352,6 +352,7 @@ subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid,issuer:always
 keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth
+subjectAltName = \\\$HOSTCERT
 
 [ crl_ext ]
 # Extension for CRLs ('man x509v3_config').
@@ -436,7 +437,7 @@ chmod 400 private/"\\\$HOSTCERT.unencryptedkey.pem"
 openssl req -config req/"\\\$HOSTCERT.req.cnf" \
       -key private/"\\\$HOSTCERT.key.pem" -passin file:password/"\\\$HOSTCERT.key.password.txt" \
       -new -sha256 -out req/"\\\$HOSTCERT.req.pem"
-openssl ca -config ca.cnf -batch \
+openssl ca -config <(cat ca.cnf | sed s/\\\\\\\$HOSTCERT/DNS:\\\$HOSTCERT,URI:https:\\\\\\\\/\\\\\\\\/\\\$HOSTCERT/g) -batch \
       -extensions server_cert -days 375 -notext -md sha256 -passin file:self/password/"\$INTERMEDIATE_NAME.key.password.txt" \
       -in req/"\\\$HOSTCERT.req.pem" \
       -out certs/"\\\$HOSTCERT.cert.pem"
@@ -476,7 +477,7 @@ if [ x"\\\${USRCERT}" == 'x' ] ; then
 	exit 1
 fi
 
-cat > req/"\\\${HOSTCERT}.req.cnf" << EOFREQ
+cat > req/"\\\${USRCERT}.req.cnf" << EOFREQ
 [ req ]
 # Options for the 'req' tool ('man req').
 default_bits        = 2048
@@ -529,7 +530,7 @@ cat certs/"\\\$USRCERT.cert.pem" \
       self/certs/"\$INTERMEDIATE_NAME.certchain.pem" > certs/"\\\$USRCERT.certchain.pem"
 
 echo "\\\$USRCERT".pkcs12 > export/"\\\$USRCERT.pkcs12.password.txt"
-openssl pkcs12 -export -inkey private/"\\\$USRCERT.key.pem" -passin file:password/"\\\$USRCERT.key.password.txt" -in intermediate/certs/"\\\$USRCERT.cert.pem" -out export/"\\\$USRCERT.pkcs12" -name "\\\$USRCERT" -noiter -nomaciter -passout file:export/"\\\$USRCERT.pkcs12.password.txt"
+openssl pkcs12 -export -inkey private/"\\\$USRCERT.key.pem" -passin file:password/"\\\$USRCERT.key.password.txt" -in certs/"\\\$USRCERT.cert.pem" -out export/"\\\$USRCERT.pkcs12" -name "\\\$USRCERT" -noiter -nomaciter -passout file:export/"\\\$USRCERT.pkcs12.password.txt"
 
 keytool -importkeystore -srckeystore export/"\\\$USRCERT.pkcs12" -srcstoretype pkcs12 -srcstorepass "\\\$USRCERT.pkcs12" -srcalias "\\\$USRCERT" -srckeypass "\\\$USRCERT.pkcs12" -destkeystore export/Keystore.jks -deststoretype jks -deststorepass changeit -destalias "\\\$USRCERT" -destkeypass changeit -noprompt
 EOFUSRCERT
